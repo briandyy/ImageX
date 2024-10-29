@@ -10,10 +10,9 @@ Use Cloudflare text-generation model to optimze the prompt and text-to-image mod
 
 ## Use
 
-Clone the repo to your disk, change the .env.example to .env, and set the right values.Run the commands in directory:
+Clone the repo to your disk, change the .env.example to .env, and set the right values.Run the commands in terminal on the directory:
 
-<code>
-
+```
 python -m venv venv
 
 source ./venv/bin/activate
@@ -21,8 +20,7 @@ source ./venv/bin/activate
 python -m pip install -r requirements.txt
 
 python app.py
-
-</code>
+```
 
 ## Demo
 
