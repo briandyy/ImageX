@@ -1,6 +1,6 @@
 import os
 from io import BytesIO
-import cloudflare
+from cloudflare import Cloudflare
 from PIL import Image
 import gradio as gr
 from pathlib import Path
@@ -14,7 +14,7 @@ ACCOUNT_ID = os.getenv('CF_ACCOUNT_ID')
 
 def img2img_image(image, prompt, negative_prompt, strength, guidance, nums_step):
     print("running img2img...")
-    client = cloudflare.Cloudflare(api_token=API_TOKEN)
+    client = Cloudflare(api_token=API_TOKEN)
     try:
         data = client.workers.ai.with_raw_response.run(
             model_name="@cf/runwayml/stable-diffusion-v1-5-img2img",

@@ -1,5 +1,5 @@
 import os
-import cloudflare
+from cloudflare import Cloudflare
 import gradio as gr
 from pathlib import Path
 from dotenv import load_dotenv
@@ -18,7 +18,7 @@ For example:
 """
 
 def translator(prompt, translateModel):
-    client = cloudflare.Cloudflare(api_token=API_TOKEN)
+    client = Cloudflare(api_token=API_TOKEN)
     if translateModel == "@cf/meta/m2m100-1.2b":
         try:
             result = client.workers.ai.run(

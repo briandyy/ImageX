@@ -2,7 +2,7 @@ import os
 from io import BytesIO
 import json
 import base64
-import cloudflare
+from cloudflare import Cloudflare
 from PIL import Image
 import gradio as gr
 import asyncio
@@ -17,7 +17,7 @@ API_TOKEN = os.getenv('CF_API_TOKEN')
 ACCOUNT_ID = os.getenv('CF_ACCOUNT_ID')
 
 async def generate_image(prompt, model):
-    client = cloudflare.Cloudflare(api_token=API_TOKEN)
+    client = Cloudflare(api_token=API_TOKEN)
     try:
         data = client.workers.ai.with_raw_response.run(
             model_name=model,

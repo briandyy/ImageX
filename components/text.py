@@ -1,5 +1,5 @@
 import os
-import cloudflare
+from cloudflare import Cloudflare
 import gradio as gr
 import asyncio
 from pathlib import Path
@@ -12,7 +12,7 @@ API_TOKEN = os.getenv('CF_API_TOKEN')
 ACCOUNT_ID = os.getenv('CF_ACCOUNT_ID')
 
 async def generate_text(prompt, system_prompt, model):
-    client = cloudflare.Cloudflare(api_token=API_TOKEN)
+    client = Cloudflare(api_token=API_TOKEN)
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": prompt}
