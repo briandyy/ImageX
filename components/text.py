@@ -2,6 +2,10 @@ import os
 import cloudflare
 import gradio as gr
 import asyncio
+from pathlib import Path
+from dotenv import load_dotenv
+
+dotenv_path = Path(__file__).resolve().parent.parent / '.env'
 
 API_TOKEN = os.getenv('CF_API_TOKEN')
 # set account id and model name

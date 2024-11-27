@@ -6,6 +6,10 @@ import cloudflare
 from PIL import Image
 import gradio as gr
 import asyncio
+from pathlib import Path
+from dotenv import load_dotenv
+
+dotenv_path = Path(__file__).resolve().parent.parent / '.env'
 
 # set cloudflare api
 API_TOKEN = os.getenv('CF_API_TOKEN')
@@ -44,4 +48,4 @@ async def generate_image(prompt, model):
         return image
 
     except Exception as e:
-        raise gr.Error(f'发生错误，请稍后重试。故障报告：{str(e)}')
+        raise gr.Error(f'Errors, try again later. Reports：{str(e)}')

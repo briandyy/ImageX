@@ -1,4 +1,5 @@
-# ImageX Cloudflare-Workers-AI-Image Generator-WebUI
+# ImageX 
+**Cloudflare-Workers-AI-Image Generator-WebUI**
 
 A Gradio webui for Cloudflare workers AI Text-to-Image, Image Inpainting, Image-To-Image generations.
 
@@ -6,7 +7,11 @@ Use Cloudflare text-generation model to translate prompts, and auto optimzing th
 
 ## Preview
 
-![alt text](<Screenshot.png>)
+![image-gen](<image1.png>)
+
+![inpainting](<image2.png>)
+
+![image-to-image](<image3.png>)
 
 ## Use
 
@@ -22,6 +27,8 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-## Demo For Text-to-Image(This demo is missing Inpainting and IMG-to-IMG.)
+## Demo For Text-to-Image Lite Version
+
+(This lite demo is missing Inpainting and IMG-to-IMG, API settings required.)
 
 [ImageX-CF in HuggingFace](https://huggingface.co/spaces/vilarin/ImageX-CF)
