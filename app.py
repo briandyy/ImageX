@@ -1,141 +1,269 @@
 import os
 import gradio as gr
+import asyncio
 from io import BytesIO
-from PIL import Image
 import base64
-import json
-from cloudflare import Cloudflare
+import numpy as np
+from PIL import Image, ImageOps
+from components import generate_text, generate_image, translator, inpaint_image, img2img_image
 
-API_TOKEN = os.getenv('CF_API_TOKEN')
-ACCOUNT_ID = os.getenv('CF_ACCOUNT_ID')
-CHAT_MODEL = os.getenv('CF_CHAT_MODEL')
-IMAGE_MODEL = os.getenv('CF_IMAGE_MODEL')
+FLUX_PROMPT ="flux_prompt.md"
+SD_PROMPT = "sd_prompt.md"
 
-PRESET_PROMPT = """
-You are a prompt generation bot based on the Flux.1 model. You automatically generate painting prompts that conform to the Flux.1 format based on user needs. While you can refer to the provided templates to learn the structure and patterns of prompts, you must be flexible to meet various needs. The final output should be limited to the prompt, without any other explanations or information. Your answers must be in English!
-### **Prompt Generation Logic**:
-1. **Need Analysis**: Extract key information from the user's description, including:
-   - **Character**: Appearance, actions, expressions, etc.
-   - **Scene**: Environment, lighting, weather, etc.
-   - **Style**: Art style, emotional atmosphere, color scheme, etc.
-   - **Other Elements**: Specific objects, backgrounds or special effects.
-2. **Prompt Structure Patterns**:
-   - **Concise, Accurate and Concrete**: Prompts need to describe the core objects simply and clearly, and include enough detail to guide the generation of images that meet the requirements.
-   - **Flexible and Diverse**: Refer to the following templates and existing examples, but generate diverse prompts based on specific needs, avoiding fixation or over-reliance on templates.
-   - **Descriptions that conform to the Flux.1 style**: Prompts must follow the requirements of Flux.1, including descriptions of art style, visual effects, emotional atmosphere, and using keywords and description patterns that are compatible with Flux.1 model generation.
-3. **Several Scene Prompt Examples for Your Reference and Learning** (You need to learn and adjust flexibly, content in "[ ]" varies according to user questions):
-   - **Character Expression Set**:
-Scene Description: Suitable for animation or comic creators to design diverse expressions for characters. These prompts can generate expression sets showing the same character in different moods, covering a variety of emotions such as happiness, sadness, anger, etc.
-Prompt: An anime [SUBJECT], animated expression reference sheet, character design, reference sheet, turnaround, lofi style, soft colors, gentle natural linework, key art, range of emotions, happy sad mad scared nervous embarrassed confused neutral, hand drawn, award winning anime, fully clothed
-[SUBJECT] character, animation expression reference sheet with several good animation expressions featuring the same character in each one, showing different faces from the same person in a grid pattern: happy sad mad scared nervous embarrassed confused neutral, super minimalist cartoon style flat muted kawaii pastel color palette, soft dreamy backgrounds, cute round character designs, minimalist facial features, retro-futuristic elements, kawaii style, space themes, gentle line work, slightly muted tones, simple geometric shapes, subtle gradients, oversized clothing on characters, whimsical, soft puffy art, pastels, watercolor
-   - **Full Angle Character View**:
-Scene Description: When you need to generate full-body images from an existing character design at different angles, such as front, side and back, suitable for character design refinement or animation modeling.
-Prompt: A character sheet of [SUBJECT] in different poses and angles, including front view, side view, and back view
-   - **1980s Retro Style**:
-Scene Description: Suitable for artists or designers who want to create photo effects in a 1980s retro style. These prompts can generate photos with a nostalgic, blurry Polaroid style.
-Prompt: blurry polaroid of [a simple description of the scene], 1980s.
-   - **Smart Phone Internal Display**:
-Scene Description: Suitable for tech bloggers or product designers who need to showcase product designs such as smartphones. These prompts help generate images that show the phone's appearance and screen content.
-Prompt: a iphone product image showing the iphone standing and inside the screen the image is shown
-   - **Double Exposure Effect**:
-Scene Description: Suitable for photographers or visual artists who use double exposure techniques to create depth and emotional expression in their artwork.
-Prompt: [Abstract style waterfalls, wildlife] inside the silhouette of a [man]’s head that is a double exposure photograph . Non-representational, colors and shapes, expression of feelings, imaginative, highly detailed
-   - **High Quality Movie Poster**:
-Scene Description: Suitable for movie promoters or graphic designers who need to create eye-catching posters for movies.
-Prompt: A digital illustration of a movie poster titled [‘Sad Sax: Fury Toad’], [Mad Max] parody poster, featuring [a saxophone-playing toad in a post-apocalyptic desert, with a customized car made of musical instruments], in the background, [a wasteland with other musical vehicle chases], movie title in [a gritty, bold font, dusty and intense color palette].
-   - **Mirror Selfie Effect**:
-Scene Description: Suitable for photographers or social media users who want to capture moments of everyday life.
-Prompt: Phone photo: A woman stands in front of a mirror, capturing a selfie. The image quality is grainy, with a slight blur softening the details. The lighting is dim, casting shadows that obscure her features. [The room is cluttered, with clothes strewn across the bed and an unmade blanket. Her expression is casual, full of concentration], while the old iPhone struggles to focus, giving the photo an authentic, unpolished feel. The mirror shows smudges and fingerprints, adding to the raw, everyday atmosphere of the scene.
-   - **Pixel Art Creation**:
-Scene Description: Suitable for pixel art enthusiasts or retro game developers to create or recreate classic pixel art style images.
-Prompt: [Anything you want] pixel art style, pixels, pixel art
-   - **The above scenes are for your learning only, you must learn to be flexible and adapt to any painting needs**:
-4. **Flux.1 Prompt Key Points Summary**:
-   - **Concise and accurate subject description**: Clearly identify the core object or scene in the image.
-   - **Specific description of style and emotional atmosphere**: Ensure the prompt includes information about art style, lighting, color scheme, and the atmosphere of the image.
-   - **Dynamic and detail supplements**: Prompts can include important details such as actions, emotions, or light and shadow effects in the scene.
-   - **Find more patterns yourself**
----
-**Question and Answer Example 1**:
-**User Input**: A photo in a 1980s retro style
-**Your Output**: A blurry polaroid of a 1980s living room, with vintage furniture, soft pastel tones, and a nostalgic, grainy texture,  The sunlight filters through old curtains, casting long, warm shadows on the wooden floor, 1980s,
-**Question and Answer Example 2**:
-**User Input**: A cyberpunk style night city background
-**Your Output**: A futuristic cityscape at night, in a cyberpunk style, with neon lights reflecting off wet streets, towering skyscrapers, and a glowing, high-tech atmosphere. Dark shadows contrast with vibrant neon signs, creating a dramatic, dystopian mood`
+prompt_new = ""
+
+CSS = """
+h1 {
+    margin-top: 10px
+}
+
+footer {
+    visibility: hidden;
+}
 """
 
-client = Cloudflare(api_token=API_TOKEN)
+modelMap  = {
+    "Qwen1.5-0.5B": "@cf/qwen/qwen1.5-0.5b-chat",
+    "Mistral-7b": "@hf/thebloke/mistral-7b-instruct-v0.1-awq",
+    "m2m100": "@cf/meta/m2m100-1.2b",
+    "Qwen1.5-7B": "@cf/qwen/qwen1.5-7b-chat-awq",
+    "Qwen1.5-14B": "@cf/qwen/qwen1.5-14b-chat-awq",
+    "Llama3.1-8B": "@cf/meta/llama-3.1-8b-instruct-fast",
+    "Flux.1-Schenell": "@cf/black-forest-labs/flux-1-schnell",
+    "SDXL": "@cf/stabilityai/stable-diffusion-xl-base-1.0",
+    "SDXL-lightning": "@cf/bytedance/stable-diffusion-xl-lightning"
+}
 
-def generate_image(prompt):
-    try:
-        data = client.workers.ai.with_raw_response.run(
-            model_name=IMAGE_MODEL,
-            account_id=ACCOUNT_ID,
-            prompt=prompt,
-        )
+# Image generation tab
+with open(FLUX_PROMPT, 'r') as f:
+    PRESET_PROMPT = f.read()
 
-        image = Image.open(BytesIO(base64.b64decode(json.loads(data.read())["result"]["image"])))
+def update_prompt(model: str):
+    global PRESET_PROMPT
+    if model.startswith("SD"):
+        with open(SD_PROMPT, 'r') as f:
+            PRESET_PROMPT = f.read()
+    else:
+        with open(FLUX_PROMPT, 'r') as f:
+            PRESET_PROMPT = f.read()
+    return gr.update(value=PRESET_PROMPT)
 
-        return image
+# image generation
+async def gen(imgModel: str, function: list):
+    # if 1 in the function list
+    if 1 in function:
+        image_task = asyncio.create_task(generate_image(str(prompt_new), modelMap[imgModel]))
+        output_image = await image_task
+        yield output_image
+    else:
+        yield None
 
-    except Exception as e:
-        raise gr.Error(str(e))
+async def op_prompt(prompt: str, system_prompt: str, translateModel:str, chatModel: str, function: list):
+    global prompt_new
+    prompt = translator(prompt, modelMap[translateModel])
+    print(function)
+    if 0 in function:
+        prompt_new = await asyncio.create_task(generate_text(prompt, system_prompt, modelMap[chatModel]))
+        text_new = f"Prompts Translation🐴: {prompt}\n\nOptimized Prompts🦄: {prompt_new}"
+    else:
+        text_new = f"Prompts Translation🐴: {prompt}"
+    yield text_new
 
-def generate_text(prompt, system_prompt):
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": prompt}
-      ]
-    try:
-        result = client.workers.ai.run(
-            account_id=ACCOUNT_ID,
-            model_name=CHAT_MODEL,
-            messages=messages,
-        )
+def image_to_int_array(image, format="PNG"):
+    """Current Workers AI REST API consumes an array of unsigned 8 bit integers"""
+    # Convert to bytes
+    buffer = BytesIO()
+    image.save(buffer, format=format)
 
-        print(f'response: {result["response"]}')
+    # Convert to uint8 array and ensure values are between 0-255
+    uint8_array = np.frombuffer(buffer.getvalue(), dtype=np.uint8)
+    # Convert to regular Python list
+    return uint8_array.tolist()
 
-        return result["response"]
+# Image inpainting Tab
+def is_mask_empty(image) -> bool:
+    gray_img = image.convert("L")
+    pixels = list(gray_img.getdata())
+    return all(pixel == 0 for pixel in pixels)
 
-    except Exception as e:
-        raise gr.Error(str(e))
+def inpaintGen(
+        imgMask,
+        inpaint_prompt: str,
+        neg_prompt: str,
+        strength: float,
+        guidance: float,
+        num_steps: int):
 
+    source_path = imgMask["background"]
+    mask_path = imgMask["layers"][0]
+    mask = Image.open(mask_path)
 
-def gen(prompt: str, system_prompt: str):
-    text = generate_text(prompt, system_prompt)
-    image = generate_image(str(text))
-    text = f"Prompt: {prompt}\n\nOptimized Prompt: {text}"
-    return text, image
+    if not is_mask_empty(mask) and inpaint_prompt:
+        print("Mask processing")
+        img = Image.open(source_path)
+        img = ImageOps.contain(img, (600, 600))
+        img_array = image_to_int_array(img)
+        alpha_channel = mask.split()[3]
+        binary_mask = alpha_channel.point(lambda p: p > 0 and 255)
+        mask_array = binary_mask
+        mask_array = image_to_int_array(mask_array)
+
+        ip_image = inpaint_image(img_array, mask_array, inpaint_prompt, neg_prompt, strength, guidance, num_steps)
+
+        return ip_image
+    else:
+        print("Mask is empty")
+        return None
+
+# img2img
+
+def img2img_Gen(
+        image,
+        prompt: str,
+        neg_prompt: str,
+        strength: float,
+        guidance: float,
+        num_steps: int):
+
+    if image and prompt:
+        print("Image processing")
+        img = Image.open(image).convert('RGB')
+        img = ImageOps.contain(img, (512, 512))
+
+        img_array = image_to_int_array(img)
+
+        image_out = img2img_image(img_array, prompt, neg_prompt, strength, guidance, num_steps)
+
+        return image_out
+    else:
+        return None
 
 # Gradio Interface
-with gr.Blocks(theme="ocean") as demo:
-    gr.HTML("<h1><center>ImagenX</center></h1>")
-    prompt = gr.Textbox(label='Enter Your Prompt', placeholder="Enter prompt...")
-    with gr.Row():
-        sendBtn = gr.Button(variant='primary')
-        clearBtn = gr.ClearButton([prompt])
-    gen_text = gr.Textbox(label="Optimization")
-    gen_img = gr.Image(type="pil", label='Generated Image', height=600)
-    with gr.Accordion("Advanced Options", open=False):
-        system_prompt = gr.Textbox(
-            value=PRESET_PROMPT,
-            label="System prompt",
-            lines=10,
-        )
-    gr.HTML("<p>Powered By Cloudflare Workers AI</p>")
 
-    gr.on(
-        triggers=[
-            prompt.submit,
-            sendBtn.click,
-        ],
-        fn=gen,
-        inputs=[
-            prompt,
-            system_prompt
-        ],
-        outputs=[gen_text, gen_img]
-    )
+with gr.Blocks(theme="ocean", title="ImageX By snekkenull", css=CSS) as demo:
+    gr.HTML("<h1><center>ImagenX</center></h1>")
+    with gr.Tab("Image generation"):
+        gr.HTML("""
+        <p>
+            <center>
+                Based on Flux.1 model, it can generate the corresponding image according to your cue words. <br> By automatically optimizing the cue words, it helps you get better generation results.
+            </center>
+        </p>
+        """)
+        prompt = gr.Textbox(label='Prompts ✏️', placeholder="A car...")
+        with gr.Row():
+            sendBtn = gr.Button(value="Submit", variant='primary')
+            clearBtn = gr.ClearButton([prompt], value="Clear")
+        gen_text = gr.Textbox(label="Procession 🦖")
+        gen_img = gr.Image(type="pil", label='Generate 🎨', height=600)
+        with gr.Accordion("Advanced ⚙️", open=False):
+            functions = gr.CheckboxGroup(choices=["Prompts Optimizer", "Image Generator"], value=["Prompts Optimizer", "Image Generator"], type = "index", label="Enable Features"),
+            translateModel = gr.Dropdown(label="Prompts-To-Eng Model", value="Mistral-7b", choices=["m2m100", "Qwen1.5-0.5B", "Mistral-7b"])
+            chatModel = gr.Dropdown(label="Prompts-Optimizer Model", value="Llama3.1-8B", choices=["Qwen1.5-7B", "Qwen1.5-14B", "Llama3.1-8B"])
+            imgModel = gr.Dropdown(label="Image-Generator Model", value="Flux.1-Schenell", choices=["Flux.1-Schenell", "SDXL", "SDXL-lightning"])
+            system_prompt = gr.Textbox(
+                value = PRESET_PROMPT,
+                label = "System Prompt",
+                lines = 10,
+            )
+
+        imgModel.select(update_prompt, [imgModel], [system_prompt])
+
+        gr.on(
+            triggers = [
+                prompt.submit,
+                sendBtn.click,
+            ],
+            fn = op_prompt,
+            inputs = [
+                prompt,
+                system_prompt,
+                translateModel,
+                chatModel,
+                functions[0]
+            ],
+            outputs = [gen_text]
+        ).then(gen, [imgModel, functions[0]], [gen_img])
+    with gr.Tab("Inpainting"):
+        gr.HTML("""
+        <p>
+            <center>
+                The image generation model based on SDXL-Inpainting allows for localized redrawing of images based on your cue words and occlusions.
+            </center>
+        </p>
+        """)
+        with gr.Row():
+            with gr.Column():
+                imgMask = gr.ImageMask(type="filepath", label="Upload image", layers=False, height=800)
+                inpaint_prompt = gr.Textbox(label='Prompts ✏️', placeholder="A cat...")
+                with gr.Row():
+                    Inpaint_sendBtn = gr.Button(value="Submit", variant='primary')
+                    Inpaint_clearBtn = gr.ClearButton([imgMask, inpaint_prompt], value="Clear")
+            image_out = gr.Image(type="pil", label="Output", height=960)
+        with gr.Accordion("Advanced ⚙️", open=False):
+            neg_prompt = gr.Textbox(label="Negative Prompt", value="")
+            strength = gr.Slider(label="Strength", minimum=0, maximum=1, value=1, step=0.1)
+            guidance = gr.Slider(label="Guidance", minimum=1, maximum=20, value=7.5, step=0.1)
+            num_steps = gr.Slider(label="Steps", minimum=1, maximum=20, value=20, step=1)
+
+        gr.on(
+            triggers = [
+                inpaint_prompt.submit,
+                Inpaint_sendBtn.click,
+            ],
+            fn = inpaintGen,
+            inputs = [
+                imgMask,
+                inpaint_prompt,
+                neg_prompt,
+                strength,
+                guidance,
+                num_steps
+            ],
+            outputs = [image_out]
+        )
+    with gr.Tab("IMG-TO-IMG"):
+        gr.HTML("""
+        <p>
+            <center>
+                The image generation model based on SDXL-Inpainting can generate graphs based on your cue words and images.
+            </center>
+        </p>
+        """)
+        with gr.Row():
+            with gr.Column():
+                imgUpload = gr.Image(type="filepath", label="Upload",  height=800)
+                img2img_prompt = gr.Textbox(label='Prompts ✏️', placeholder="A cat...")
+                with gr.Row():
+                    img2img_sendBtn = gr.Button(value="Submit", variant='primary')
+                    img2img_clearBtn = gr.ClearButton([imgUpload, img2img_prompt], value="Clear")
+            img2img_out = gr.Image(type="pil", label="Output", height=960)
+        with gr.Accordion("Advanced ⚙️", open=False):
+            img2img_neg = gr.Textbox(label="Negative Prompt", value="")
+            img2img_strength = gr.Slider(label="Strength", minimum=0, maximum=1, value=1, step=0.1)
+            img2img_guidance = gr.Slider(label="Guidance", minimum=1, maximum=20, value=7.5, step=0.1)
+            img2img_num_steps = gr.Slider(label="Steps", minimum=1, maximum=20, value=20, step=1)
+
+        gr.on(
+            triggers = [
+                img2img_prompt.submit,
+                img2img_sendBtn.click,
+            ],
+            fn = img2img_Gen,
+            inputs = [
+                imgUpload,
+                img2img_prompt,
+                img2img_neg,
+                img2img_strength,
+                img2img_guidance,
+                img2img_num_steps
+            ],
+            outputs = [img2img_out]
+        )
+
+    gr.HTML("""
+    <p><a href="https://github.dev/snekkenull/ImageX"> Snekkenull </a> OpenSource</p>
+    """)
 
 if __name__ == "__main__":
-    demo.queue(api_open=False).launch(show_api=False, share=False)
+    demo.queue(api_open=False).launch(server_name="0.0.0.0", server_port=7860, show_api=False, share=False)
