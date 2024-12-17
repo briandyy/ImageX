@@ -266,4 +266,4 @@ with gr.Blocks(theme="ocean", title="ImageX By snekkenull", css=CSS) as demo:
     """)
 
 if __name__ == "__main__":
-    demo.queue(api_open=False).launch(server_name="0.0.0.0", server_port=7860, show_api=False, share=False)
+    demo.queue(api_open=False).launch(server_name="localhost", server_port=80, show_api=True, share=False)
