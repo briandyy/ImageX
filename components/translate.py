@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 
 dotenv_path = Path(__file__).resolve().parent.parent / '.env'
 
-API_TOKEN = os.getenv('CF_API_TOKEN')
-# set account id and model name
-ACCOUNT_ID = os.getenv('CF_ACCOUNT_ID')
+ACCOUNT_ID = "71b0dc84e2b478d2f6993300deb55adc"
+API_TOKEN = "02mVybqSMCIhD9QHvUdjZXisxlDsDu1QDupHzPTM"
+
 
 translate_prompt = """
 You are a professional translator, you can accurately translate any input content into natvie English. Your output should be only in English translation without other eplanation.
