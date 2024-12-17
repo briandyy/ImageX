@@ -6,6 +6,7 @@ import base64
 import numpy as np
 from PIL import Image, ImageOps
 from components import generate_text, generate_image, translator, inpaint_image, img2img_image
+import flet as ft
 
 FLUX_PROMPT ="flux_prompt.md"
 SD_PROMPT = "sd_prompt.md"
@@ -266,4 +267,4 @@ with gr.Blocks(theme="ocean", title="ImageX By snekkenull", css=CSS) as demo:
     """)
 
 if __name__ == "__main__":
-    demo.queue(api_open=False).launch(server_name="localhost", server_port=80, show_api=True, share=False)
+    ft.app(target=main, view=ft.WEB_BROWSER)
