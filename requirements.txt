@@ -3,3 +3,4 @@ cloudflare
 python-dotenv
 Pillow
 pydantic==2.9.2
+flet
